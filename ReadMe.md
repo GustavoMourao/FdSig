@@ -38,8 +38,14 @@ optional arguments:
   -v                    Display image.
 
 
+Usage example (updated!)
+===
+
 To codificate set of local images, as example, run:
+
 `python FdSig_modified_new.py 'coca.jpg' -o 'pepsi_coca.jpg' -i 'pepsi.png' -v`
 
+
 To decodificate a codificate local images, as example, run:
+
 `python FdSig_modified_new.py 'coca.jpg' -d 'pepsi_coca.jpg'`
