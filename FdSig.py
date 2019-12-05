@@ -16,8 +16,17 @@ import matplotlib.pyplot as pyplot
 import cv2
 
 
-def normalizedRGB(img):
+def normalized_rgb(img):
     """
+    Normalize image.
+
+    Args:
+    ---------
+        img: raw image
+
+    Returns:
+    ---------
+        normalized image
     """
     if img.dtype == np.uint8:
         return img[:, :, :3] / 255.
@@ -27,6 +36,17 @@ def normalizedRGB(img):
 
 def mix(a, b, u, keepImag=False):
     """
+    Method that applies mix add mode mode on images.
+
+    Args:
+    ---------
+        a:
+        b:
+        u:
+
+    Returns:
+    ---------
+        mix coefs
     """
     if keepImag:
         return (a.real * (1 - u) + b.real * u) + a.imag * 1j
@@ -70,11 +90,10 @@ def centralize(img, side=.06, clip=False):
     return img, low, high
 
 
-def shuffleGen(size, secret=None):
+def shuffle_gen(size, secret=None):
     """
     """
     r = np.arange(size)
-    # Not None, ""
     if secret:
         random.seed(secret)
         for i in range(size, 0, -1):
@@ -83,66 +102,95 @@ def shuffleGen(size, secret=None):
     return r
 
 
-def xmapGen(shape, secret = None):
+def xmap_gen(shape, secret=None):
     """
     """
-    xh, xw = shuffleGen(shape[0], secret), shuffleGen(shape[1], secret)
+    xh, xw = shuffle_gen(shape[0], secret), shuffle_gen(shape[1], secret)
     xh = xh.reshape((-1, 1))
     return xh, xw
 
 
-def encodeImage(oa, ob, xmap=None, margins=(1, 1), alpha=None):
+def encode_image(oa, ob, xmap=None, margins=(1, 1), alpha=None, mix_mod='add'):
     """
+    Encodes image ob into oa. First images are normalized.
+    Then, original image (`oa`) will hide uncovered
+    image (`ob`). To do that, `oa` is transform to frequency
+    domain. After that is summed in each `oa` bin the respectivelly
+    bins of `ob` image. Finally, the image is transform to spatial
+    domain again.
+
+    Args:
+    ---------
+        oa: original image
+        ob: mask (hided) image/mark
+        mix_mod: mode of add figures
+
+    Returns:
+    ---------
+        encoded image (only visible into frequency domain)
     """
-    na = normalizedRGB(oa)
-    nb = normalizedRGB(ob)
-    fa = np.fft.fft2(na, None, (0, 1))
+    na = normalized_rgb(oa)
+    nb = normalized_rgb(ob)
+    fa = np.fft.fft2(
+        na,
+        None, (0, 1)
+    )
     pb = np.zeros((na.shape[0]//2-margins[0]*2, na.shape[1]-margins[1]*2, 3))
     pb[:nb.shape[0], :nb.shape[1]] = nb
 
     low = 0
     if alpha is None:
         _, low, high = centralize(fa)
-        alpha = (high - low)# / 2
-        print("encodeImage: alpha = {}".format(alpha))
+        alpha = (high - low)
+        print("encode_image: alpha = {}".format(alpha))
 
     if xmap is None:
-        xh, xw = xmapGen(pb.shape)
+        xh, xw = xmap_gen(pb.shape)
     else:
         xh, xw = xmap[:2]
 
-    # add mode
-    fa[+margins[0]+xh, +margins[1]+xw] += pb * alpha
-    fa[-margins[0]-xh, -margins[1]-xw] += pb * alpha
-    # mix mode
-    # fa[+margins[0]+xh, +margins[1]+xw] = mix(fa[+margins[0]+xh, +margins[1]+xw], pb, alpha, True)
-    # fa[-margins[0]-xh, -margins[1]-xw] = mix(fa[-margins[0]-xh, -margins[1]-xw], pb, alpha, True)
-    # multiply mode
-    # la = np.abs(fa[+margins[0]+xh, +margins[1]+xw])
-    # la[np.where(la<1e-3)] = 1e-3
-    # fa[+margins[0]+xh, +margins[1]+xw] *= (la + pb * alpha) / la
-    # la = np.abs(fa[-margins[0]-xh, -margins[1]-xw])
-    # la[np.where(la<1e-3)] = 1e-3
-    # fa[-margins[0]-xh, -margins[1]-xw] *= (la + pb * alpha) / la
+    if mix_mod == 'add':
+        # Add mode.
+        fa[+margins[0]+xh, +margins[1]+xw] += pb * alpha
+        fa[-margins[0]-xh, -margins[1]-xw] += pb * alpha
+    if mix_mod == 'mix':
+        # mix mode
+        fa[+margins[0]+xh, +margins[1]+xw] =\
+            mix(fa[+margins[0]+xh, +margins[1]+xw], pb, alpha, True)
+        fa[-margins[0]-xh, -margins[1]-xw] =\
+            mix(fa[-margins[0]-xh, -margins[1]-xw], pb, alpha, True)
+    if mix_mod == 'multiply':
+        # multiply mode
+        la = np.abs(fa[+margins[0]+xh, +margins[1]+xw])
+        la[np.where(la < 1e-3)] = 1e-3
+        fa[+margins[0]+xh, +margins[1]+xw] *= (la + pb * alpha) / la
+        la = np.abs(fa[-margins[0]-xh, -margins[1]-xw])
+        la[np.where(la < 1e-3)] = 1e-3
+        fa[-margins[0]-xh, -margins[1]-xw] *= (la + pb * alpha) / la
 
     xa = np.fft.ifft2(fa, None, (0, 1))
-    # use real part
+
+    # Use real part.
     xa = xa.real
     xa = np.clip(xa, 0, 1)
-    # use abs + zoom/shift
-#    xa = np.abs(xa)
-#    nv = np.average(na)
-#    ev = np.average(ea)
-#    delta = (nv - ev) / (1 - ev) if 1 > ev else 0
-#    xa = xa * (1 - delta) + delta
+
     return xa, fa
 
 
-def encodeText(oa, text, *args, **kwargs):
+def encode_text(oa, text, *args, **kwargs):
     """
+    Encodes text into image.
+
+    Args:
+    ---------
+        oa: original image
+        text: text (string)
+
+    Returns:
+    ---------
+        encoded image (only visible into frequency domain)
     """
     font = ImageFont.truetype("consola.ttf", oa.shape[0] // 7)
-    #font = ImageFont.load_default()
     renderSize = font.getsize(text)
     padding = min(renderSize) * 2 // 10
     renderSize = (renderSize[0] + padding * 2, renderSize[1] + padding * 2)
@@ -150,22 +198,32 @@ def encodeText(oa, text, *args, **kwargs):
     draw = ImageDraw.Draw(textImg)
     draw.text((padding, padding), text, (255, 255, 255), font=font)
     ob = np.asarray(textImg)
-    return encodeImage(oa, ob, *args, **kwargs)
+    return encode_image(oa, ob, *args, **kwargs)
 
 
-def decodeImage(xa, xmap=None, margins=(1, 1), oa=None, full=False):
+def decode_image(xa, xmap=None, margins=(1, 1), oa=None, full=False):
     """
+    Decodes image with hided mark (mask), only visible into frequency
+    domain.
+
+    Args:
+    ---------
+        xa: image with hided mark
+
+    Returns:
+    ---------
+        dencoded image (frequency domain/spectra)
     """
-    na = normalizedRGB(xa)
+    na = normalized_rgb(xa)
     fa = np.fft.fft2(na, None, (0, 1))
 
     if xmap is None:
-        xh = xmapGen((xa.shape[0]//2-margins[0]*2, xa.shape[1]-margins[1]*2))
+        xh = xmap_gen((xa.shape[0]//2-margins[0]*2, xa.shape[1]-margins[1]*2))
     else:
         xh, xw = xmap[:2]
 
     if oa is not None:
-        noa = normalizedRGB(oa)
+        noa = normalized_rgb(oa)
         foa = np.fft.fft2(noa, None, (0, 1))
         fa -= foa
 
@@ -176,8 +234,17 @@ def decodeImage(xa, xmap=None, margins=(1, 1), oa=None, full=False):
     return nb
 
 
-def imshowEx(img, *args, **kwargs):
+def imshow_ex(img, *args, **kwargs):
     """
+    Show image (space and frequency domain).
+
+    Args:
+    ---------
+        img: image
+
+    Returns:
+    ---------
+        show image
     """
     img, _, _ = centralize(img, clip=True)
 
@@ -192,10 +259,20 @@ def imshowEx(img, *args, **kwargs):
 
 def imsaveEx(fn, img, *args, **kwargs):
     """
+    Saves image.
+
+    Args:
+    ---------
+        fn: image name
+        img: image
+
+    Returns:
+    ---------
+        saves image
     """
     kwargs["dpi"] = 1
 
-    if img.dtype != np.uint8: # and (fn.endswith(".jpg") or fn.endswith(".jpeg"))
+    if img.dtype != np.uint8:
         print("Performing clamp and rounding")
         img, _, _ = centralize(img, clip=True)
         img = (img * 255).round().astype(np.uint8)
@@ -203,9 +280,18 @@ def imsaveEx(fn, img, *args, **kwargs):
     pyplot.imsave(fn, img, *args, **kwargs)
 
 
-# In case of grayScale images the len(img.shape) == 2
-def __remove_channel(img):
+def remove_channel(img):
     """
+    In case of grayScale images the len(img.shape) == 2.
+    Remove channel inconsistence (higher than 4).
+
+    Args:
+    ---------
+        img: image
+
+    Returns:
+    ---------
+        resized image0
     """
     if len(img.shape) > 2 and img.shape[2] == 4:
         # Convert the image from RGBA2RGB.
@@ -214,170 +300,191 @@ def __remove_channel(img):
     return img
 
 
+def adjust_image_sizes(oa, ob, flag_plot=False):
+    """
+    Adjust mask image (that will be hided - `ob`) size
+    based on principal image (`oa`). `ob` has to be smaller
+    than `oa`.
+
+    Args:
+    ---------
+        oa: original image
+        ob: hided image
+
+    Returns:
+    ---------
+        resized image
+    """
+
+    # Adjust number of channels.
+    ob = remove_channel(ob)
+    oa = remove_channel(oa)
+
+    new_x = oa.shape[0]
+    new_y = oa.shape[1]
+    ob_res = cv2.resize(
+        ob,
+        (new_y // 3, new_x // 3),
+        interpolation=cv2.INTER_AREA
+    )
+
+    if flag_plot:
+        imshow_ex(ob_res)
+        pyplot.show()
+
+    return ob_res
+
+
+def shows_processed_images(output, xmap, margins, oa):
+    """
+    Show sequence of processed images.
+
+    Args:
+    ---------
+        oa: original image
+        ob: hided image
+
+    Returns:
+    ---------
+        resized image
+    """
+    xa = pyplot.imread(output)
+    xb = decode_image(xa, xmap, margins, oa)
+
+    pyplot.figure()
+    pyplot.subplot(221)
+    imshow_ex(
+        ea,
+        title="enco"
+    )
+    pyplot.subplot(222)
+    imshow_ex(
+        normalized_rgb(xa) - normalized_rgb(oa),
+        title="delt"
+    )
+    pyplot.subplot(223)
+    imshow_ex(
+        fa,
+        title="freq"
+    )
+    pyplot.subplot(224)
+    imshow_ex(
+        xb,
+        title="deco"
+    )
+    pyplot.show()
+
+
 if __name__ == "__main__" or True:
     """
     """
-    # argparser = argparse.ArgumentParser(
-    #     description="Frequency domain image steganography/waterprint/signature"
-    # )
-    # argparser.add_argument(
-    #     "input_image",
-    #     metavar="file",
-    #     type=str,
-    #     help="Original image filename."
-    # )
-    # argparser.add_argument(
-    #     "-o",
-    #     "--output",
-    #     dest="output",
-    #     type=str,
-    #     help="Output filename."
-    # )
-    # argparser.add_argument(
-    #     "-s",
-    #     "--secret",
-    #     dest="secret",
-    #     type=str,
-    #     help="Secret to generate index mapping.")
-    # # encode
-    # argparser.add_argument(
-    #     "-i",
-    #     "--image",
-    #     dest="imagesign",
-    #     type=str,
-    #     help="Signature image filename."
-    # )
-    # argparser.add_argument(
-    #     "-t",
-    #     "--text",
-    #     dest="textsign",
-    #     type=str,
-    #     help="Signature text."
-    # )
-    # argparser.add_argument(
-    #     "-a",
-    #     "--alpha",
-    #     dest="alpha",
-    #     type=float,
-    #     help="Signature blending weight."
-    # )
-    # # decode
-    # argparser.add_argument(
-    #     "-d",
-    #     "--decode",
-    #     dest="decode",
-    #     type=str,
-    #     help="Image filename to be decoded."
-    # )
-    # # other
-    # argparser.add_argument(
-    #     "-v",
-    #     dest="visual",
-    #     action="store_true",
-    #     default=False,
-    #     help="Display image."
-    # )
-    # args = argparser.parse_args()
+    argparser = argparse.ArgumentParser(
+        description="Frequency domain image steganography/waterprint/signature"
+    )
+    argparser.add_argument(
+        "input_image",
+        metavar="file",
+        type=str,
+        help="Original image filename."
+    )
+    argparser.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        type=str,
+        help="Output filename."
+    )
+    argparser.add_argument(
+        "-s",
+        "--secret",
+        dest="secret",
+        type=str,
+        help="Secret to generate index mapping.")
+    # encode
+    argparser.add_argument(
+        "-i",
+        "--image",
+        dest="imagesign",
+        type=str,
+        help="Signature image filename."
+    )
+    argparser.add_argument(
+        "-t",
+        "--text",
+        dest="textsign",
+        type=str,
+        help="Signature text."
+    )
+    argparser.add_argument(
+        "-a",
+        "--alpha",
+        dest="alpha",
+        type=float,
+        help="Signature blending weight."
+    )
+    # decode
+    argparser.add_argument(
+        "-d",
+        "--decode",
+        dest="decode",
+        type=str,
+        help="Image filename to be decoded."
+    )
+    # other
+    argparser.add_argument(
+        "-v",
+        dest="visual",
+        action="store_true",
+        default=False,
+        help="Display image."
+    )
+    args = argparser.parse_args()
 
-    input_image = 'coca.jpg'
-    secret = 'Texto!'
-    output = 'pepsi_coca_test.jpg'
-    imagesign = 'pepsi.png'
-    textsign = 'Texto!'
-    alpha = None
-    # decode = 'pepsi_coca.jpg'
-    decode = False
-    visual = True
-    oa = pyplot.imread(input_image)
-
+    oa = pyplot.imread(args.input_image)
     margins = (oa.shape[0] // 7, oa.shape[1] // 7)
     margins = (1, 1)
-    xmap = xmapGen(
+    xmap = xmap_gen(
         (oa.shape[0]//2-margins[0]*2, oa.shape[1]-margins[1]*2),
-        secret
+        args.secret
     )
 
-    if decode:
-        xa = pyplot.imread(decode)
-        xb = decodeImage(xa, xmap, margins, oa)
-        if output is None:
-            base, ext = path.splitext(decode)
-            output = base + "-" + path.basename(input_image) + ext
-        imsaveEx(output, xb)
+    if args.decode:
+        xa = pyplot.imread(args.decode)
+        xb = decode_image(xa, xmap, margins, oa)
+        if args.output is None:
+            base, ext = path.splitext(args.decode)
+            args.output = base + "-" + path.basename(args.input_image) + ext
+        imsaveEx(args.output, xb)
         print("Image saved.")
-        if visual:
+        if args.visual:
             pyplot.figure()
-            imshowEx(
-                xb,
-                title="deco"
-            )
+            imshow_ex(xb, title="deco")
             pyplot.show()
     else:
-        if imagesign:
-            ob = pyplot.imread(imagesign)
+        if args.imagesign:
+            ob = pyplot.imread(args.imagesign)
+            ob_res = adjust_image_sizes(oa, ob, flag_plot=False)
+            ea, fa = encode_image(oa, ob_res, xmap, margins, args.alpha)
 
-            ob = __remove_channel(ob)
-            oa = __remove_channel(oa)
-
-            new_x = ob.shape[0]
-            new_y = ob.shape[1]
-            oa_res = cv2.resize(
-                oa,
-                (new_y, new_x),
-                interpolation=cv2.INTER_AREA
-            )
-
-            new_x = oa.shape[0]
-            new_y = oa.shape[1]
-            ob_res = cv2.resize(
-                ob,
-                (new_y // 3, new_x // 3),
-                interpolation=cv2.INTER_AREA
-            )
-
-            imshowEx(ob_res)
-            pyplot.show()
-
-            # ea, fa = encodeImage(oa, ob, xmap, margins, alpha)
-            # ea, fa = encodeImage(oa_res, ob, xmap, margins, alpha)
-            ea, fa = encodeImage(oa, ob_res, xmap, margins, alpha)
-            if output is None:
-                base, ext = path.splitext(input_image)
-                output = base + "+" + path.basename(imagesign) + ext
-        elif textsign:
-            ea, fa = encodeText(oa, textsign, xmap, margins, alpha)
-            if output is None:
-                base, ext = path.splitext(input_image)
-                output = base + "_" + path.basename(textsign) + ext
+            if args.output is None:
+                base, ext = path.splitext(args.input_image)
+                args.output = base + "+" + path.basename(args.imagesign) + ext
+        elif args.textsign:
+            ea, fa = encode_text(oa, args.textsign, xmap, margins, args.alpha)
+            if args.output is None:
+                base, ext = path.splitext(args.input_image)
+                args.output = base + "_" + path.basename(args.textsign) + ext
         else:
             print("Neither image or text signature is not given.")
             exit(2)
 
-        imsaveEx(output, ea)
+        imsaveEx(args.output, ea)
         print("Image saved.")
-        if visual:
-            xa = pyplot.imread(output)
-            xb = decodeImage(xa, xmap, margins, oa)
+        if args.visual:
 
-            pyplot.figure()
-            pyplot.subplot(221)
-            imshowEx(
-                ea,
-                title="enco"
+            shows_processed_images(
+                args.output,
+                xmap,
+                margins,
+                oa
             )
-            pyplot.subplot(222)
-            imshowEx(
-                normalizedRGB(xa) - normalizedRGB(oa),
-                title="delt"
-            )
-            pyplot.subplot(223)
-            imshowEx(
-                fa,
-                title="freq"
-            )
-            pyplot.subplot(224)
-            imshowEx(
-                xb,
-                title="deco"
-            )
-            pyplot.show()
