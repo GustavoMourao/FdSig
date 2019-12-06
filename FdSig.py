@@ -300,6 +300,41 @@ def remove_channel(img):
     return img
 
 
+def ajdust_decoded_image(oa, ob, flag_plot=False):
+    """
+    Adjust decoded mask image (that will be hided - `ob`) size
+    based on principal image (`oa`). `ob` has to be smaller
+    than `oa`.
+
+    Args:
+    ---------
+        oa: original image
+        ob: hided image
+
+    Returns:
+    ---------
+        resized image
+    """
+
+    # Adjust number of channels.
+    ob = remove_channel(ob)
+    oa = remove_channel(oa)
+
+    new_x = oa.shape[0]
+    new_y = oa.shape[1]
+    ob_res = cv2.resize(
+        ob,
+        (new_y // 1, new_x // 1),
+        interpolation=cv2.INTER_AREA
+    )
+
+    if flag_plot:
+        imshow_ex(ob_res)
+        pyplot.show()
+
+    return ob_res
+
+
 def adjust_image_sizes(oa, ob, flag_plot=False):
     """
     Adjust mask image (that will be hided - `ob`) size
@@ -450,6 +485,7 @@ if __name__ == "__main__" or True:
 
     if args.decode:
         xa = pyplot.imread(args.decode)
+        xa = ajdust_decoded_image(oa, xa)
         xb = decode_image(xa, xmap, margins, oa)
         if args.output is None:
             base, ext = path.splitext(args.decode)

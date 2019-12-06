@@ -49,3 +49,7 @@ To codificate set of local images, as example, run:
 To decodificate a codificate local images, as example, run:
 
 `python FdSig.py 'coca.jpg' -d 'pepsi_coca.jpg'`
+
+To perform decodification from decoded image foto, run:
+
+`python FdSig.py 'coca.jpg' -d 'pepsi_coca_foto.png'`
