@@ -516,8 +516,8 @@ if __name__ == "__main__" or True:
 
         imsaveEx(args.output, ea)
         print("Image saved.")
-        if args.visual:
 
+        if args.visual:
             shows_processed_images(
                 args.output,
                 xmap,
