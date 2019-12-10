@@ -14,6 +14,7 @@ import argparse
 from os import path
 import matplotlib.pyplot as pyplot
 import cv2
+from scipy import ndimage
 
 
 def normalized_rgb(img):
@@ -138,6 +139,7 @@ def encode_image(oa, ob, xmap=None, margins=(1, 1), alpha=None, mix_mod='add'):
     pb = np.zeros((na.shape[0]//2-margins[0]*2, na.shape[1]-margins[1]*2, 3))
     pb[:nb.shape[0], :nb.shape[1]] = nb
 
+    # TODO: VERIFY ANULAR REGION TO MINIZE BORD EFFECT!
     low = 0
     if alpha is None:
         _, low, high = centralize(fa)
@@ -151,8 +153,14 @@ def encode_image(oa, ob, xmap=None, margins=(1, 1), alpha=None, mix_mod='add'):
 
     if mix_mod == 'add':
         # Add mode.
+        # fa[+margins[0]+xh, +margins[1]+xw] += pb * alpha
+        # fa[-margins[0]-xh, -margins[1]-xw] += pb * alpha
+
         fa[+margins[0]+xh, +margins[1]+xw] += pb * alpha
         fa[-margins[0]-xh, -margins[1]-xw] += pb * alpha
+        fa[+margins[0]+xh, -margins[1]+xw] += pb * alpha
+        fa[+margins[0]+xh, -margins[1]+xw] += pb * alpha
+        fa[-margins[0]+xh, -margins[1]+xw] += pb * alpha
     if mix_mod == 'mix':
         # mix mode
         fa[+margins[0]+xh, +margins[1]+xw] =\
@@ -359,7 +367,8 @@ def adjust_image_sizes(oa, ob, flag_plot=False):
     new_y = oa.shape[1]
     ob_res = cv2.resize(
         ob,
-        (new_y // 3, new_x // 3),
+        # (new_y // 3, new_x // 3),
+        (new_y // 6, new_x // 6),
         interpolation=cv2.INTER_AREA
     )
 
@@ -476,6 +485,7 @@ if __name__ == "__main__" or True:
     args = argparser.parse_args()
 
     oa = pyplot.imread(args.input_image)
+    # oa = ndimage.rotate(oa, 45)
     margins = (oa.shape[0] // 7, oa.shape[1] // 7)
     margins = (1, 1)
     xmap = xmap_gen(
