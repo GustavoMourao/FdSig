@@ -41,8 +41,14 @@ Audio-Analysis
 ===
 Adds signal into some image pixels. In this version the pattern i visually inspected.
 
+
+Application example
+
+![](./coded-signal.png)
+
+
 Examples
-====
+=====
 > Code image with audio
 
 `python Audio-Analysis.py 'images/gilete1.tif' -o 'gilete1-audios.jpg'`
@@ -53,7 +59,7 @@ Examples
 
 
 Somes usage Examples
-====
+=====
 
 To codificate set of local images, as example, run:
 
