@@ -107,134 +107,226 @@ def imsaveEx(fn, img, *args, **kwargs):
     pyplot.imsave(fn, img, *args, **kwargs)
 
 
-if __name__ == "__main__":
+def read_signals_return_data(input_image):
+    """
+    Read signals and modulates covered pattern/signal.
 
-    # argparser = argparse.ArgumentParser(
-    #     description="Frequency domain image steganography/waterprint/signature"
-    # )
-    # argparser.add_argument(
-    #     "input_image",
-    #     metavar="file",
-    #     type=str,
-    #     help="Original image filename."
-    # )
-    # argparser.add_argument(
-    #     "-o",
-    #     "--output",
-    #     dest="output",
-    #     type=str,
-    #     help="Output filename."
-    # )
-    # argparser.add_argument(
-    #     "-s",
-    #     "--secret",
-    #     dest="secret",
-    #     type=str,
-    #     help="Secret to generate index mapping.")
-    # # encode
-    # argparser.add_argument(
-    #     "-i",
-    #     "--image",
-    #     dest="imagesign",
-    #     type=str,
-    #     help="Signature image filename."
-    # )
-    # argparser.add_argument(
-    #     "-t",
-    #     "--text",
-    #     dest="textsign",
-    #     type=str,
-    #     help="Signature text."
-    # )
-    # argparser.add_argument(
-    #     "-a",
-    #     "--alpha",
-    #     dest="alpha",
-    #     type=float,
-    #     help="Signature blending weight."
-    # )
-    # # decode
-    # argparser.add_argument(
-    #     "-d",
-    #     "--decode",
-    #     dest="decode",
-    #     type=str,
-    #     help="Image filename to be decoded."
-    # )
-    # # other
-    # argparser.add_argument(
-    #     "-v",
-    #     dest="visual",
-    #     action="store_true",
-    #     default=False,
-    #     help="Display image."
-    # )
-    # args = argparser.parse_args()
+    Args:
+    ---------
+        input_image: souce name of image
 
-    input_image = 'gilete1.tif'
-    oa = pyplot.imread(input_image)
+    Returns:
+    ---------
+        img: image (numpy.ndarray)
+        sound: signal/sound to be covered
+        imgx: x dim of image
+        imgy: y dim of image
+        imgz: z dim of image
+    """
+    img = pyplot.imread(input_image)
+    imgx, imgy, imgz = img.shape[0], img.shape[1], img.shape[2]
 
-    # # --------
-    # # Test: get image and see info
-    # oa_with_sound = pyplot.imread('gilete1-audio-crop-2.png')
+    # TODO: CREATE SIN WAVE!
+    signal = scipy.io.wavfile.read('images/F051710.WAV')
+    signal = np.abs(signal[1])
 
-    # oa_with_sound_flatten = oa_with_sound.flatten()
+    return img, signal, imgx, imgy, imgz
 
-    # pyplot.plot(oa_with_sound_flatten)
-    # pyplot.show()
-    # # --------
 
-    # --------
-    # 1. Transform 2D data into one dimension
-    # imshow_ex(oa, title="before")
-    # pyplot.show()
-    x_dim, y_dim, z_dim = oa.shape[0], oa.shape[1], oa.shape[2]
+def image_colapses_normalize_signal(img, signal):
+    """
+    Colapses image into one dimension axis and normalizes.
+    signal to be covered.
 
-    # Read sound to be added
-    # sound = AudioSegment.from_wav(file='F051710.WAV')
-    sound = scipy.io.wavfile.read('F051710.WAV')
-    # play(sound)
-    sound = sound[1]
-    # pyplot.plot(sound)
-    # pyplot.show()
-    sound = np.abs(sound)
+    Args:
+    ---------
+        img: image
+        signal: signal
 
-    oa_flatten = oa.flatten()
+    Returns:
+    ---------
+        img_flatten: image flatten
+        signal: normalized signal
+    """
+    img_flatten = img.flatten()
+    signal = signal/np.max(img_flatten)
 
-    sound = sound/np.max(oa_flatten)
+    return img_flatten, signal
 
-    # Substituir os N últimos caracteres pelo áudio
+
+def cover_information(img_flatten, signal):
+    """
+    Cover signal information into image at the end of signal.
+
+    Args:
+    ---------
+        img_flatten: image as flatten mode
+        signal: signal
+
+    Returns:
+    ---------
+        img_flatten: image flatten with cover pattern/signal
+    """
     counter_sound = 0
-    for i in range(len(oa_flatten)):
-        if i < (len(oa_flatten) - len(sound)):
-            oa_flatten[i] = oa_flatten[i]
+    for i in range(len(img_flatten)):
+        if i < (len(img_flatten) - len(sound)):
+            img_flatten[i] = img_flatten[i]
         else:
-            oa_flatten[i] = sound[counter_sound]
+            img_flatten[i] = signal[counter_sound]
             counter_sound += 1
 
-    # # Adicionar no meio da sequencia o audio
-    # for i in range(len(oa_flatten)):
-    #     if i < (len(oa_flatten)//2):
+    return img_flatten
 
-    # oa_resulted = np.concatenate((
-    #     oa_flatten,
-    #     sound
-    # ), axis=None)
-    # oa_resulted.flatten()
 
-    oa_resulted = oa_flatten
+def encoded_image(img_flatten, imgx, imgy, imgz):
+    """
+    Converts encripted flatten image as an encripted image.
 
-    pyplot.plot(oa_resulted)
-    pyplot.show()
-    scipy.io.wavfile.write('image_sound.wav', 20000, oa_resulted)
+    Args:
+    ---------
+        img_flatten: image in flatten mode
+        imgx: x dim of original image
+        imgy: y dim of original image
+        imgz: z dim of original image
 
-    oa_back = oa_resulted.reshape(
-        x_dim,
-        y_dim,
-        z_dim
+    Returns:
+    ---------
+        encoded image
+    """
+    return img_flatten.reshape(
+        imgx,
+        imgy,
+        imgz
     )
-    imshow_ex(oa_back, title="after")
+
+
+def decode_image(img_coded):
+    """
+    Get flatten image and shows the encoded signal.
+
+    Args:
+    ---------
+        img_coded: source name of image with code to be verified
+
+    Returns:
+    ---------
+        plots image with signal encripted
+    """
+    # TODO: CREATES A TEST BASED ON SIGNAL FREQUENCY
+    oa_with_sound = pyplot.imread(img_coded)
+    oa_with_sound_flatten = oa_with_sound.flatten()
+
+    pyplot.plot(oa_with_sound_flatten)
+    pyplot.title('Decoded image as signal')
     pyplot.show()
 
-    # SALVAR IMAGEM COM ÁUDIO!
-    imsaveEx('gilete1-com-audio.jpg', oa_back)
+
+if __name__ == "__main__":
+
+    argparser = argparse.ArgumentParser(
+        description="Frequency domain image steganography/waterprint/signature"
+    )
+    argparser.add_argument(
+        "input_image",
+        metavar="file",
+        type=str,
+        help="Original image filename."
+    )
+    argparser.add_argument(
+        "-o",
+        "--output",
+        dest="output",
+        type=str,
+        help="Output filename."
+    )
+    argparser.add_argument(
+        "-s",
+        "--secret",
+        dest="secret",
+        type=str,
+        help="Secret to generate index mapping.")
+    # encode
+    argparser.add_argument(
+        "-i",
+        "--image",
+        dest="imagesign",
+        type=str,
+        help="Signature image filename."
+    )
+    argparser.add_argument(
+        "-t",
+        "--text",
+        dest="textsign",
+        type=str,
+        help="Signature text."
+    )
+    argparser.add_argument(
+        "-a",
+        "--alpha",
+        dest="alpha",
+        type=float,
+        help="Signature blending weight."
+    )
+    # decode
+    argparser.add_argument(
+        "-d",
+        "--decode",
+        dest="decode",
+        type=str,
+        help="Image filename to be decoded."
+    )
+    # other
+    argparser.add_argument(
+        "-v",
+        dest="visual",
+        action="store_true",
+        default=False,
+        help="Display image."
+    )
+    args = argparser.parse_args()
+
+    if args.decode:
+        decode_image(args.decode)
+    elif args.output:
+        oa, sound, x_dim, y_dim, z_dim = read_signals_return_data(
+            args.input_image
+        )
+
+        oa_flatten, sound = image_colapses_normalize_signal(oa, sound)
+
+        pyplot.subplot(121)
+        pyplot.plot(oa_flatten)
+        pyplot.title('Original Image')
+
+        oa_resulted = cover_information(oa_flatten, sound)
+        oa_back = encoded_image(oa_resulted, x_dim, y_dim, z_dim)
+
+        imsaveEx(args.output, oa_back)
+
+        pyplot.subplot(122)
+        pyplot.plot(oa_resulted)
+        pyplot.title('Original Image with Cover Info')
+        pyplot.show()
+
+    # # Test.
+    # input_image = 'images/gilete1.tif'
+
+    # oa, sound, x_dim, y_dim, z_dim = read_signals_return_data(input_image)
+
+    # oa_flatten, sound = image_colapses_normalize_signal(oa, sound)
+
+    # oa_flatten = cover_information(oa_flatten, sound)
+
+    # oa_resulted = cover_information(oa_flatten, sound)
+
+    # # pyplot.plot(oa_resulted)
+    # # pyplot.show()
+    # # scipy.io.wavfile.write('image_sound.wav', 20000, oa_resulted)
+
+    # oa_back = encoded_image(oa_resulted, x_dim, y_dim, z_dim)
+
+    # imshow_ex(oa_back, title="after")
+    # pyplot.show()
+
+    # # SALVAR IMAGEM COM ÁUDIO!
+    # imsaveEx('gilete1-com-audio.jpg', oa_back)
